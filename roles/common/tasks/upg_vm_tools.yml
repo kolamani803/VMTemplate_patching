@@ -1,0 +1,15 @@
+---
+  - block:
+    - name: Upgrade VM Tools on '{{ newvmname }}'
+      vmware_guest_tools_upgrade:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        uuid: '{{ newvmuuid }}'
+        validate_certs: no
+        name: '{{ newvmname }}'
+      delegate_to: localhost
+    rescue:
+      - set_fact:
+          templatepatchingstatus: 'Failed to upgrade VM tools on {{ newvmname }}'

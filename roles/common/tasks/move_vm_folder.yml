@@ -1,0 +1,16 @@
+---
+  - block:
+      - name: Move VM to different folder
+        community.vmware.vmware_guest_move:
+          hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+          username: '{{ lookup("env", "VMWARE_USER") }}'
+          password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+          datacenter: '{{ vcenter_datacenter }}'
+          validate_certs: False
+          name: '{{ newvmname }}'
+          dest_folder: "{{vm_folder.folders[0]}}/"
+          # dest_folder: "/{{ vcenter_datacenter }}/vm{{parent_folder}}/"
+        delegate_to: localhost
+    rescue:
+      - set_fact:
+          templatepatchingstatus: 'Failed to move the VM {{ newvmname }}'

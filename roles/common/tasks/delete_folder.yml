@@ -1,0 +1,18 @@
+---
+  - block:
+    - name: Delete a pre month sub folder folder under given parent folder
+      community.vmware.vcenter_folder:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter: "{{ vcenter_datacenter }}"
+        folder_name: '{{beprevmfolder}}'
+        parent_folder: '{{ parent_folder }}/Backup/'
+        state: absent
+        validate_certs: no
+        folder_type: vm
+      register: Delete_folder
+      delegate_to: localhost 
+    rescue:
+      - set_fact:
+          templatepatchingstatus: 'Failed to delete folder  {{beprevmfolder}}' 

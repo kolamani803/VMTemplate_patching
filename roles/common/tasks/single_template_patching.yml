@@ -1,0 +1,309 @@
+--- 
+      - name: Backup and Launch templates as a new VM
+        block:
+          - name: Preparing variables
+            vars:
+              task: set_facts.yml
+            include_role:
+              name: common
+          - name: Getting the cluster for "{{ inventory_hostname }}"
+            set_fact:
+              clustername: '{{winclustername}}'
+            when: summary.config.guestFullName is search('Microsoft Windows')
+            # or summary.config.guestFullName is search('Microsoft Windows 10')
+          - name: Getting the cluster for {{ inventory_hostname }}
+            set_fact:
+              clustername: '{{linclustername}}'
+            when: summary.config.guestFullName is not search('Microsoft')
+            
+          - name: Copy old templates
+            vars:
+              task: copy_temp.yml
+            include_role:
+              name: common
+          
+          - block:
+            - name: Launch new VM from template "{{ inventory_hostname }} in cluster {{clustername}}"
+              vars:
+                task: launch_new_vm.yml
+              include_role:
+                name: common
+            when: templatepatchingstatus is not search('Failed')
+            
+          - name: Update templates    
+            block:
+              - debug:
+                  var: vmname
+              
+              - name: Upgrade VM Tools on '{{ newvmname }}'
+                vars:
+                  task: upg_vm_tools.yml
+                include_role:
+                  name: common
+                when: summary.config.guestFullName is search('Microsoft Windows')
+                  # summary.config.guestFullName is search('Microsoft Windows Server') or summary.config.guestFullName is search('Microsoft Windows 10')
+
+              - name: Add Redhat host
+                vars:
+                  task: addredhathost.yml
+                include_role:
+                  name: common
+                when: summary.config.guestFullName is search('Red Hat')
+                             
+              - name: Add CentOS host
+                vars:
+                  connectiontype: ssh
+                  port: 22
+                  username: cloudhqadmin
+                  password: '{{ vmpassword }}'
+                  groupname: '{{ vCenter }}centos'
+                  task: addlinuxhost.yml
+                include_role:
+                  name: common
+                when: summary.config.guestFullName is search('CentOS') 
+
+              - name: Add ubuntu 20 host 
+                vars:
+                  connectiontype: ssh
+                  port: 22
+                  username: cloudhqadmin
+                  password: '{{ vmpassword }}'
+                  groupname: '{{ vCenter }}ubuntu20'
+                  task: addlinuxhost.yml
+                include_role:
+                  name: common
+                when: newvm.instance.hw_name is search('ubuntu20')
+                
+              - name: Add ubuntu 18 host 
+                vars:
+                  connectiontype: ssh
+                  port: 22
+                  username: cloudhqadmin
+                  password: '{{ vmpassword }}'
+                  groupname: '{{ vCenter }}ubuntu18'
+                  task: addlinuxhost.yml
+                include_role:
+                  name: common
+                when: newvm.instance.hw_name is search('ubuntu18')
+                            
+              - name: Update Windows
+                vars:
+                  vmfolder: '{{vm_folder.folders[0]}}/Backup/{{ currmonth.stdout }}-{{ curryear }}'
+                  windows_user: '\administrator'
+                  windows_user_pass: '{{ vmpassword }}'
+                include: roles/windows/tasks/main.yml
+                when: summary.config.guestFullName is search('Microsoft')
+
+
+              # - name: Update Windows server
+              #   vars:
+              #     vmfolder: '{{vm_folder.folders[0]}}/Backup/{{ currmonth.stdout }}-{{ curryear }}'
+              #     windows_user: '\administrator'
+              #     windows_user_pass: '{{ vmpassword }}'
+              #     sub: 'Windows Server CloudHQ template patching logs report - {{ lookup("env", "VMWARE_HOST") }}'
+              #     logfile: windows_server.txt
+              #   include: roles/windows/tasks/main.yml
+              #   when: summary.config.guestFullName is search('Microsoft Windows Server')
+              
+              - name: Update ubuntu
+                include: roles/ubuntu/tasks/main.yml
+                delegate_to: '{{ vmname }}'
+                when: summary.config.guestFullName is search('Ubuntu')
+
+              - name: Redhat Upgrade
+                include: roles/redhat/tasks/main.yml
+                delegate_to: '{{ vmname }}'
+                when: summary.config.guestFullName is search('Red Hat')
+              
+              - name: Centos Upgrade
+                vars:
+                  registrationcmd: 'sudo /usr/sbin/rhnreg_ks --force --serverUrl=https://swalk-master-sjc.ad.ea.com/XMLRPC --sslCACert=/usr/share/rhn/RHN-ORG-TRUSTED-SSL-CERT --activationkey=4-fb0a8b2f9ddede0e3a731de1502f689d'
+                include: roles/centos/tasks/main.yml
+                delegate_to: '{{ vmname }}'
+                when: summary.config.guestFullName is search('CentOS')
+
+              - block:
+                # Here this delay was added due to Windows cmd telling installed but some times still installation is going on in the Updates UI
+                - name: Wait seconds
+                  pause:
+                    seconds: 300
+
+                - name: Reboot VM
+                  vars:
+                    vmfolder: '{{vm_folder.folders[0]}}/Backup/{{ currmonth.stdout }}-{{ curryear }}'
+                    state: reboot-guest
+                    task: change_vm_state.yml
+                  include_role:
+                    name: common      
+
+                - name: Wait seconds
+                  pause:
+                    seconds: 400
+
+                - name: Get the VM Ip addresse after patching
+                  vars:
+                    task: get_ip_address.yml
+                  include_role:
+                    name: common
+                - debug:
+                    msg: '{{vmvalidationip}}'
+                - block:     
+                    - name: Get the VM IP after patching and reboot
+                      vars:
+                        slackmsg: '{{vmname}} vm got the ip address after patching and rebooting - {{vmvalidationip}}'
+                        task: slack_notification_reply.yml
+                        colorcode: 'good'
+                      include_role:
+                        name: common
+
+                    - name: Move {{ newvmname }} VM to {{parent_folder}}
+                      vars:
+                        task: move_vm_folder.yml
+                      include_role:
+                        name: common
+                        
+                    - name: Wait seconds
+                      pause:
+                        seconds: 120
+                      
+                    - name: Shutdown {{ newvmname }} VM as a guest
+                      vars:
+                        vmfolder: '{{vm_folder.folders[0]}}'
+                        state: shutdown-guest
+                        task: change_vm_state.yml
+                      include_role:
+                        name: common
+                    
+                    - name: Wait seconds
+                      pause:
+                        seconds: 120   
+
+                    - name: Delete exisitng template i.e {{ inventory_hostname }}
+                      vars:
+                        name: '{{ inventory_hostname }}'   
+                        task: delete_template.yml     
+                      include_role:
+                        name: common                     
+                                
+                    - name: Convert VM to template
+                      vars:
+                        task: con_vm_tem.yml
+                      include_role:
+                        name: common
+                    
+                    - name: 'Delete exisitng template i.e {{ inventory_hostname }}-old-{{ bepremonth.stdout}}'
+                      vars:
+                        name: '{{ inventory_hostname }}-old-{{ bepremonth.stdout}}'
+                        task: delete_template.yml
+                      include_role:
+                        name: common
+                  when: templatepatchingstatus is not search('Failed')
+                  # and vmvalidationip is search('.')
+
+                  rescue:
+                    - set_fact:
+                        templatepatchingstatus: Failed block to get the Ip address
+
+                rescue:
+                  - set_fact:
+                      templatepatchingstatus: Failed block while rebooting and geting the IP address after patching
+
+                when: templatepatchingstatus is not search('Failed') and templatepatchingstatus is search('Success')
+
+              - set_fact:
+                  templatepatchingstatus: Failed at conditions checks to run the patching
+                when: templatepatchingstatus is not search('Failed') and templatepatchingstatus is not search('Success')
+          
+            when: newvmlaunched is not defined and templatepatchingstatus is not search('Failed')
+            # when: newvmlaunched != "False" or templatepatchingstatus is not search('Failed')
+            
+
+        rescue:
+          - set_fact:
+              templatepatchingstatus: Failed main block  
+      
+      - name: slack notification - Notify the template patching status
+        vars:
+          slackmsg: 'Template patching for {{ inventory_hostname }} - Patching status is {{ templatepatchingstatus }} ------  {{updatelogs}} '
+          colorcode: 'good'
+          task: slack_notification_reply.yml
+        include_role:
+          name: common     
+        when: templatepatchingstatus is search('Success')
+        
+      - name: slack notification - Notify the template patching status
+        vars:
+          slackmsg: 'Template patching for {{ inventory_hostname }} - Patching status is {{ templatepatchingstatus }}'
+          colorcode: 'danger'
+          task: slack_notification_reply.yml
+        include_role:
+          name: common     
+        when: templatepatchingstatus is search('Failed')
+        
+      - debug:
+         var: templatepatchingstatus
+      
+      
+      
+      # - name: Add a new host for upgradation - {{ newvmname }}
+      #   vars:
+      #     # connectiontype: winrm
+      #     # port: 22
+      #     username: '{{ windows_user }}'
+      #     password: '{{ windows_user_password }}'
+      #     groupname: 'windows10'
+      #   include_role:
+      #     name: common
+      #     tasks_from: addwinhost.yml
+      #   when: newvm.instance.hw_guest_full_name is search('Microsoft Windows 10')
+
+      # - name: Add a new host for upgradation - {{ newvmname }}
+      #   vars:
+      #     # connectiontype: winrm
+      #     # port: 22
+      #     username: '{{ windows_user }}'
+      #     password: '{{ Windows_server_password }}'
+      #     groupname: 'windowsserver'
+      #   include_role:
+      #     name: common
+      #     tasks_from: addwinhost.yml
+      #   when: newvm.instance.hw_guest_full_name is search('Microsoft Windows Server')
+
+      # - name: Notify task closure in Slack
+      #   slack: 
+      #     domain: "{{ slack_domain }}"
+      #     token: "{{ slack_token }}"
+      #     msg: "{{ msg }}"
+      #     channel: "{{ slack_channel }}"
+
+      # - name: Convert VM "{{ template_name }}" to Template
+      #   vmware_guest:
+      #     hostname: '{{ vcenter_hostname }}'
+      #     username: '{{ vcenter_username }}'
+      #     password: '{{ vcenter_password }}'
+      #     datacenter: '{{ vcenter_datacenter }}'
+      #     folder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}'
+      #     validate_certs: no
+      #     name: "{{ newvmname }}"
+      #     # template: "cb-ubuntu1804x64-base-"
+      #     convert: thin
+      #     is_template: yes
+      
+      # - name: Convert VM {{ newvmname }} to template {{ template_name }}
+      #   vars:
+      #     prevmfolder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}'
+      #     prevmname: '{{ template_name }}-'
+      #     template_name: '{{ }}'
+      #   include_role:
+      #     name: common
+      #     tasks_from: copy_temp.yml
+      
+      # - name: Delete vm {{ newvmname }} from inventory and disk
+      #   include_role:
+      #     name: common
+      #     tasks_from: delete_vm.yml
+    
+  # - name: Delete folder {{ beprevmfolder }}
+  #   include_role:
+  #     name: common
+  #     tasks_from: delete_folder.yml

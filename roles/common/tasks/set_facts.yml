@@ -1,0 +1,33 @@
+---
+    - set_fact:
+        curryear: '{{ year.stdout }}'
+
+    - set_fact:
+        vmfolder: '{{vm_folder.folders[0]}}/Backup/{{ currmonth.stdout }}-{{ curryear }}/'
+
+    - set_fact:
+        newvmname: '{{ inventory_hostname }}-new-{{ currmonth.stdout}}'
+
+    - set_fact:
+        prevmfolder: '{{vm_folder.folders[0]}}/Backup/{{ premonth.stdout }}-{{ curryear }}/'
+        
+    - set_fact:
+        prevmname: '{{ inventory_hostname }}-old-{{ premonth.stdout}}'
+    
+    - set_fact:
+        beprevmfolder: '{{vm_folder.folders[0]}}/Backup/{{ bepremonth.stdout }}-{{ curryear }}/'
+    # - set_fact:
+    #     vmfolder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}/Backup/{{ currmonth.stdout }}-{{ curryear }}/'
+
+    
+
+    # - set_fact:
+    #     prevmfolder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}/Backup/{{ premonth.stdout }}-{{ curryear }}/'
+    # - set_fact:
+    #     beprevmfolder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}/Backup/{{ bepremonth.stdout }}-{{ curryear }}/'
+
+    
+    
+
+
+    

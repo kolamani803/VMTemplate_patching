@@ -1,0 +1,13 @@
+---
+- block:
+    - name: Add host Redhat
+      add_host:
+        name: '{{ vmname }}'
+        ansible_connection: ssh
+        ansible_port: 22
+        ansible_host: '{{ newvmip }}'
+        ansible_become: yes
+        groups: redhat
+      register: redaddhost
+      delegate_to: localhost
+  # when: newvm.instance.hw_guest_full_name is search('Red Hat')

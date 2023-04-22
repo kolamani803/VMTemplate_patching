@@ -1,0 +1,321 @@
+- name: Slack notification and get the passwords from ERPM
+  hosts: localhost
+  connection: local
+  become: False
+
+  tasks:
+    - block:  
+      - name: save thread_id
+        copy:
+          dest: "/tmp/{{ vCenter }}thread_id.txt"
+          content: |
+            {{ slackid }}
+            
+      - name: slack notification - Notify the template patching status
+        vars:
+          slackmsg: 'Template pathing running on same Slack thread - ThreadID - {{ slackid }} '
+          task: slack_notification.yml
+          slackthreadid: '{{ slackid }}'
+        include_role:
+          name: common
+      when: slackid is not search('New')
+
+    - block:
+        - name: slack notification - Notify the template patching status
+          vars:
+            slackmsg: 'Cloud HQ VM Template patching on vCenter {{ lookup("env", "VMWARE_HOST") }}- Datacenter - {{vcenter_datacenter}}'
+            task: slack_notification.yml
+          include_role:
+            name: common
+
+        - name: save thread_id
+          copy:
+            dest: "/tmp/{{ vCenter }}thread_id.txt"
+            content: |
+              {{ slacknotification['ts'] }} 
+        
+        - name: Get slack thread_id
+          shell: cat /tmp/{{ vCenter }}thread_id.txt
+          register: slacktid
+        
+        - debug:
+            var: slacktid
+
+        - debug:
+            var: slacktid.stdout
+
+        - set_fact:
+            slackthreadid: '{{slacktid.stdout}}' 
+        
+        - name:
+          vars:
+            slackmsg: Slack Thread ID - {{ slacknotification['ts'] }}
+            colorcode: 'good'
+            slackthreadid: '{{slacktid.stdout}}'
+            task: slack_notification_reply.yml
+          include_role:
+            name: common 
+
+      when: slackid is search('New')
+
+
+    - block:
+      - name: Get the password of the Windows Server
+        vars:
+          # system_name: cloudhq%20windows2019%20template%20(cb-win2k19x64-base)
+          system_name: cloudhq%20windows2019%20/%20windows2022%20template%20(cb-win2k19x64-base)%20(cb-win22x64-base)
+          service_account: administrator
+        include_role:
+          name: ERPM
+      - name: save Password
+        copy:
+          dest: "/tmp/{{ vCenter }}windows_server.txt"
+          content: |
+            {{ password.json.Password }}
+      rescue:
+        - debug:
+            msg: Failed to pull Windows Server Password
+
+
+    - name: Wait
+      pause:
+        seconds: 180
+    - block:
+      - name: Get the password of the Windows 10
+        vars: 
+          system_name: cloudhq%20windows10%20template%20(cb-win10x64-base)
+          service_account: administrator
+        include_role:
+          name: ERPM
+      - name: save Password
+        copy:
+          dest: "/tmp/{{ vCenter }}windows_10.txt"
+          content: |
+            {{ password.json.Password }}
+      rescue:
+        - debug:
+            msg: Failed to pull Windows 10 Password
+
+    - name: Wait
+      pause:
+        seconds: 180
+
+    - block:
+      - name: Get the password of the Linux
+        vars:
+          system_name: Cloudhq/Cloudbolt%20templates
+          service_account: cloudhqadmin
+        include_role:
+          name: ERPM
+      - name: save Password
+        copy:
+          dest: "/tmp/{{ vCenter }}linux.txt"
+          content: |
+            {{ password.json.Password }}
+      rescue:
+        - debug:
+            msg: Failed to pull Linux Password
+
+- name: Playbook to update templates in vCenter
+  hosts: all
+  connection: local
+  gather_facts: yes
+  become: False
+
+    
+  tasks:
+    - block:
+        - name: Get slack thread_id
+          shell: cat /tmp/{{ vCenter }}thread_id.txt
+          register: slacktid
+
+        - debug:
+            var: slacktid.stdout
+
+        - set_fact:
+            slackthreadid: '{{slacktid.stdout}}'
+
+        - block:
+            - name: Read Windows server password file
+              shell: cat /tmp/{{ vCenter }}windows_server.txt
+              register: windowsserpass
+            - debug:
+                msg: '{{windowsserpass.stdout}}'
+            - set_fact:
+                vmpassword: '{{windowsserpass.stdout}}'
+          when: summary.config.guestFullName is search('Windows Server')
+          rescue:
+            - debug:
+                msg: Failed to pull Windows Server Password
+
+
+        - block:
+            - name: Read Windows 10 password file
+              shell: cat /tmp/{{ vCenter }}windows_10.txt
+              register: windowspass
+            - debug:
+                msg: '{{windowspass.stdout}}'
+            - set_fact:
+                vmpassword: '{{windowspass.stdout}}'
+          when: summary.config.guestFullName is search('Windows 10')
+          rescue:
+            - debug:
+                msg: Failed to pull Windows 10 Password
+
+        - block:
+            - name: Read Linux password file
+              shell: cat /tmp/{{ vCenter }}linux.txt
+              register: linux
+            - debug:
+                msg: '{{linux.stdout}}'
+            - set_fact:
+                vmpassword: '{{linux.stdout}}'
+          when: summary.config.guestFullName is not search('Microsoft')
+          rescue:
+            - debug:
+                msg: Failed to pull Linux Password
+
+
+        - name: Find Guest's Folder using name - '{{ inventory_hostname }}'
+          ignore_errors: yes
+          vmware_guest_find:
+            name: '{{ inventory_hostname }}'
+            validate_certs: False
+          delegate_to: localhost
+          register: vm_folder
+        # - name: Gather all registered virtual machines
+        #   community.vmware.vmware_vm_info:
+        #     hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        #     username: '{{ lookup("env", "VMWARE_USER") }}'
+        #     password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        #     validate_certs: no
+        #   delegate_to: localhost
+        #   register: vminfo
+
+        # - debug:
+        #     var: vminfo
+
+        # - name: Get vm folder
+        #   debug:
+        #     msg: "{{ item.folder }}"
+        #   when: item.guest_name == '{{ inventory_hostname }}'
+        #   loop: "{{ vminfo.virtual_machines }}"
+        #   register: vmfolder
+        
+        # - debug:
+        #     var: vmfolder
+           
+        
+        - debug:
+            var: vm_folder
+
+        - debug:
+            var: vm_folder.folders
+        - block:
+          - debug:
+              msg: This is related CloudHQ Templates production path - '{{vm_folder.folders}}'
+          - debug:
+              msg: '{{vm_folder.folders[0]}}'
+        
+          - name: Get months information to create folders for backup
+            vars:
+              task: months.yml
+            include_role:
+              name: common
+
+          - name: Create folders to take backup of old templates and for the new templates patching
+            vars:
+              task: create_folders.yml
+            include_role:
+              name: common
+          # - name: Prepare host group
+          #   set_fact: 
+          #     groupname: '{{ inventory_hostname|regex_replace("[^A-Za-z0-9]", "") }}'
+          # - debug:
+          #     msg: '{{groupname}}'
+          
+          - name: Template patching
+            vars:
+              # item: "{{ inventory_hostname }}"
+              task: single_template_patching.yml
+            include_role:
+              name: common
+
+            when:  vm_folder.folders is not search('Backup') and vm_folder.folders is search('Cloudbolt Templates')
+          when: vm_folder.folders is defined and vmpassword is defined
+        - block:
+            - block:
+              - name:
+                vars:
+                  slackmsg: '{{ inventory_hostname }} is not part of Production CloudHQ Template '
+                  colorcode: 'good'
+                  task: slack_notification_reply.yml
+                include_role:
+                  name: common 
+              when: vm_folder.folders is not search('Cloudbolt Templates') and vm_folder.folders is search('Backup')
+          when: vm_folder.folders is defined
+
+        - block: 
+            - name: Slack notification when template is not active
+              vars:
+                slackmsg: '{{ inventory_hostname }} is not active template in this vCenter {{ lookup("env", "VMWARE_HOST") }}'
+                colorcode: 'danger'
+                task: slack_notification_reply.yml
+              include_role:
+                name: common 
+          when: vm_folder.folders is not defined
+        - block: 
+            - name: Slack notification when template is not active
+              vars:
+                slackmsg: '{{ inventory_hostname }} - {{ summary.config.guestFullName }} - Failed to get the password from ERPM'
+                colorcode: 'danger'
+                task: slack_notification_reply.yml
+              include_role:
+                name: common 
+          when: vmpassword is not defined
+          rescue:
+            - debug:
+                msg: Password could not able to pull from ERPM password
+                
+      delegate_to: localhost
+
+- name: Slack notification and get the passwords from ERPM
+  hosts: localhost
+  connection: local
+  become: False
+
+  tasks:
+
+    - block:
+      - name: Get slack thread_id
+        shell: cat /tmp/{{ vCenter }}thread_id.txt
+        register: slacktid
+
+      - debug:
+          var: slacktid.stdout
+
+      - set_fact:
+          slackthreadid: '{{slacktid.stdout}}'
+
+      - name: Remove ERPM password files from tmp directory
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items:
+          - '/tmp/{{ vCenter }}windows_server.txt'
+          - '/tmp/{{ vCenter }}windows_10.txt'
+          - '/tmp/{{ vCenter }}linux.txt'
+          - '/tmp/{{ vCenter }}thread_id.txt'
+      rescue:
+        - debug:
+            msg: Failed to remove ERPM password temp files
+            
+        - name: Slack notification when not able to delete passwords temp 
+          vars:
+            slackmsg: 'Failed to remove ERPM password temp files'
+            colorcode: 'danger'
+            task: slack_notification_reply.yml
+          include_role:
+            name: common 
+
+      

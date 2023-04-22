@@ -1,0 +1,92 @@
+---
+- block:
+    - set_fact:
+        vmname: '{{ inventory_hostname }}'
+        newvmname: '{{ inventory_hostname }}'
+
+    - name: convert template to vm
+      vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        validate_certs: no
+        folder: '{{vm_folder.folders[0]}}'
+        cluster: '{{clustername}}'
+        datacenter: '{{ vcenter_datacenter }}'
+        name: '{{ inventory_hostname }}'
+        state: "present"
+        template: '{{ inventory_hostname }}'
+        is_template: no
+      delegate_to: "localhost"
+      register: convert_to_vm
+    
+    - name: Power on Production VM
+      vars:
+        vmfolder: '{{vm_folder.folders[0]}}'
+        newvmname: '{{ inventory_hostname }}'
+        state: poweredon
+        task: change_vm_state.yml
+      include_role:
+        name: common
+    
+    - name: Wait seconds
+      pause:
+        seconds: 400
+      when: summary.config.guestFullName is search('Windows')
+        
+    - name: Reboot VM
+      vars:
+        vmfolder: '{{vm_folder.folders[0]}}'
+        state: reboot-guest
+        task: change_vm_state.yml
+      include_role:
+        name: common
+      when: summary.config.guestFullName is search('Windows')
+
+    # This dely is for prepare OS for the updates this much delay only for Windows Vm's because few updates are getting missed.
+    - name: Wait seconds
+      pause:
+        seconds: 400
+      when: summary.config.guestFullName is search('Windows')
+
+    - name: Wait seconds
+      pause:
+        seconds: 200
+      when: summary.config.guestFullName is not search('Windows')
+
+    - block:
+
+        - name: Get the VM Ip address of New VM
+          vars:
+            task: get_ip_address.yml
+          include_role:
+            name: common
+        - debug:
+            msg: '{{lanvalidip}}'
+
+        - set_fact:
+            templatepatchingstatus: Failed to assign the IPv4 address to VM which is converted from production Template
+          when: lanvalidip is not search('.')
+
+        - block:
+          - name: Get VM facts
+            vars:
+              task: vm_info.yml
+            include_role:
+              name: common
+          - set_fact:
+              newvmuuid: '{{ vminfo.hw_product_uuid }}'
+          - set_fact:
+              newvmip: '{{lanvalidip}}'
+          - debug:
+              var: newvmip
+          
+          when: lanvalidip is search('.')
+
+      when: convert_to_vm is defined
+
+  rescue:
+    - set_fact:
+        newvmlaunched: False
+        templatepatchingstatus: Failed to convert template to VM {{ inventory_hostname }}
+

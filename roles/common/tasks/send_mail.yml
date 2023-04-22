@@ -1,0 +1,19 @@
+---
+  - block:
+    - name: Send e-mail to a bunch of users, attaching files
+      community.general.mail:
+        host: mailhost.ea.com
+        port: 25
+        subject: '{{sub}}'
+        body: Hello, this is an ansible automated e-mail - {{ inventory_hostname }} ;-)
+        from: noreply@ea.com
+        to: '{{receiver}}'
+        attach:
+        - '/tmp/{{logfile}}'
+        charset: us-ascii
+      delegate_to: localhost
+      
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed at send an a email with attachment
+

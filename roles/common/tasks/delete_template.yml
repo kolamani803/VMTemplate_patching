@@ -1,0 +1,20 @@
+---
+- block:
+    - name: Remove a Template from inventory and Datastore
+      community.vmware.vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        name: '{{ name }}'
+        delete_from_inventory: False
+        state: absent
+        force: yes
+        is_template: yes
+        validate_certs: no
+        state_change_timeout: 800
+        # validate_certs: no
+      delegate_to: localhost
+  rescue:
+    - set_fact:
+        templatepatchingstatus: Failed to delete previous month backedup template
+

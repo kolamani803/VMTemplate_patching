@@ -1,0 +1,22 @@
+---
+  - block:
+    - name: Convert VM {{ item }} to Template
+      community.vmware.vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}' 
+        datacenter: '{{ vcenter_datacenter }}'
+        folder: '/{{ vcenter_datacenter }}/vm{{ parent_folder }}'
+        validate_certs: no
+        uuid: '{{ newvmuuid }}'
+        name: "{{ inventory_hostname }}"
+        # template: "cb-ubuntu1804x64-base-"
+        convert: thin
+        is_template: yes
+        state_change_timeout: 200
+      delegate_to: localhost
+      
+    rescue:
+      - set_fact:
+          templatepatchingstatus: 'Failed to convert {{vmname}} to Template'
+      

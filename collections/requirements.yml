@@ -1,0 +1,15 @@
+collections:
+    - name: community.windows
+      source: https://galaxy.ansible.com
+    # - name: community.vmware
+    #   source: https://galaxy.ansible.com
+    - name: ansible.windows
+      source: https://galaxy.ansible.com
+    # - name: community.general
+    #   source: https://galaxy.ansible.com
+    # - name: community.general
+    #   source: https://galaxy.ansible.com
+    # - name: vmware.vmware_rest
+#       source: https://galaxy.ansible.com
+    # - name: vcenter_vm_guest
+    # - name: pywinrm

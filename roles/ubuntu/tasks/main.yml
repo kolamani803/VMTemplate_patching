@@ -1,0 +1,59 @@
+---
+  - block:
+      - name: Hostname
+        shell: hostname
+        # become: true
+        register: hostname
+      
+      - debug:
+          var: hostname
+      - block:
+          - name: slack notification - Notify the template patching status
+            vars:
+              slackmsg: 'Ubuntu failed at host adding - {{vmname}}'
+              task: slack_notification_reply.yml
+              colorcode: 'danger'
+            include_role:
+              name: common
+          - set_fact:
+              templatepatchingstatus: Failed at adding Ubuntu host
+        when: hostname.stdout is search('tower')
+        
+      - block:
+      
+          - name: Update all packages to their latest version
+            apt:
+              name: "*"
+              state: latest
+            register: upgrade
+            
+          - debug:
+              var: upgrade
+          - debug:
+              var: upgrade.stdout
+
+          - set_fact:
+              updatelogs: '{{upgrade.stdout}}'
+          
+
+          - name: slack notification - Notify the template patching status
+            vars:
+              slackmsg: 'Ubuntu host got added - {{vmname}}'
+              task: slack_notification_reply.yml
+              colorcode: 'good'
+            include_role:
+              name: common
+          - set_fact:
+              templatepatchingstatus: Success
+
+          
+        when: hostname.stdout is not search('tower')
+        
+        rescue:
+          - set_fact:
+              templatepatchingstatus: Failed Ubuntu while updating  
+      
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed Ubuntu while updating
+

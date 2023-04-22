@@ -1,0 +1,86 @@
+---
+
+  - debug:
+      var: '{{ item }}'
+    
+  - debug:
+      var: '{{task}}'
+
+  # - name: Registration
+  #   shell: "{{registrationcmd}}"
+  #   register: registration
+  #   # sudo /usr/sbin/rhnreg_ks --force --serverUrl=https://swalk-master-sjc.ad.ea.com/XMLRPC --sslCACert=/usr/share/rhn/RHN-ORG-TRUSTED-SSL-CERT --activationkey=4-fb0a8b2f9ddede0e3a731de1502f689d
+  
+  # - debug:
+  #     var: registration
+  # - debug:
+  #     var: registration.stderr
+  
+  # - name: Check file path
+  #   stat:
+  #     path: "/etc/sysconfig/rhn/systemid"
+  #   register: file_data
+  
+  # - debug:
+  #     var: file_data
+  
+  # - name: Task name
+  #   shell: sudo yum update -y
+  #   set_fact:
+  #     templatepatchingstatus: Success
+  #   when: file_data.stat.exists == true
+  #   register: upgrade
+  
+  # - debug:
+  #     var: upgrade
+      
+  # - name: remove sytemid file
+  #   file: 
+  #     name: "/etc/sysconfig/rhn/systemid"
+  #     state: absent
+  # - debug:
+  #     var: templatepatchingstatus
+  # - name: Task name
+  #   yum:
+  #     name: '*'
+  #     state: latest
+  #   register: upgrade
+  #   when: file_data.stat.exists == true
+  # - name: Upgrade all packages
+  #   # become: true
+  #   yum:
+  #     name: '*'
+  #     state: latest
+  #   register: upgrade
+  
+  # - name: Task name
+  #   stat:
+  #     path: "/etc/pki/rpm-gpg/RPM-GPG-KEY-spacewalk-2015"
+  #   register: file_data
+  
+  # - name: Task name
+  #   debug:
+  #     msg: "The file or directory exists"
+  #   when: file_data_name.stat.exists
+
+  # - name: To disable other all local repos
+  #   shell: |
+  #     sudo sed -i -r -e 's/^(enabled=)1/\10/' /etc/yum.repos.d/*
+  #     sudo sed -i -r -e 's/(gpgcheck.*$)/\1\nenabled=0/' /etc/yum.repos.d/CentOS-Base.repo
+  #   register: Disable
+    
+  # - name: Enabling Spacewalk remote Management
+  #   shell: |
+  #     sudo /usr/bin/rhn-actions-control --enable-run
+  #   register: Enable
+
+  # - set_fact:
+  #     vmregistration: Failed
+  #   when: registration.results[0].stderr is search('Failed') or registration.results[1].stderr is search('Failed')
+  
+  # - debug:
+  #     var: vmregistration
+
+  # - set_fact:
+  #     vmregistration: success
+  #   when: (registration.results[0].stderr is search('Nothing to do')) and register_name.stat.exists

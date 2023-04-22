@@ -1,0 +1,91 @@
+---        
+    - name: Launch new VM from template "{{ inventory_hostname }}" 
+      block:
+        - vmware_guest:
+            hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+            username: '{{ lookup("env", "VMWARE_USER") }}'
+            password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+            datacenter: '{{ vcenter_datacenter }}'
+            cluster: '{{clustername}}'
+            validate_certs: False
+            name: '{{ newvmname }}'
+            template: '{{ inventory_hostname }}'
+            folder: '{{ vmfolder }}'
+            state: poweredon
+            convert: thin
+            hardware:
+              memory_mb: 12288
+              num_cpus: 6
+            wait_for_ip_address: yes
+            wait_for_ip_address_timeout: 1800
+            state_change_timeout: 1800
+          # when: guestfullname.results[0].msg is defined
+          delegate_to: localhost
+          register: newvm
+        
+        # This dely is for prepare OS for the updates this much delay only for Windows Vm's because few updates are getting missed.
+        - name: Wait seconds
+          pause:
+            seconds: 400
+          when: summary.config.guestFullName is search('Windows')
+          
+        - name: Reboot VM
+          vars:
+            vmfolder: '{{vm_folder.folders[0]}}/Backup/{{ currmonth.stdout }}-{{ curryear }}'
+            state: reboot-guest
+            task: change_vm_state.yml
+          include_role:
+            name: common
+          when: summary.config.guestFullName is search('Windows')
+        
+        # This dely is for prepare OS for the updates this much delay only for Windows Vm's because few updates are getting missed.
+        - name: Wait seconds
+          pause:
+            seconds: 400
+          when: summary.config.guestFullName is search('Windows')
+        
+        - name: Wait seconds
+          pause:
+            seconds: 200
+          when: summary.config.guestFullName is not search('Windows')
+      
+        - debug: 
+            var: newvm
+        
+        - debug: 
+            var: newvm.instance.hw_product_uuid        
+        
+        - set_fact:
+            newvmip: '{{ newvm.instance.ipv4 }}'
+        
+        - debug:
+            var: newvmip
+        
+        - set_fact:
+            newvmuuid: '{{ newvm.instance.hw_product_uuid }}'
+        - set_fact:
+            vmname: '{{ newvm.instance.hw_name }}'
+        
+        - debug:
+            var: newvm.instance.hw_guest_full_name
+        - block:
+
+          - name: Get the VM Ip address of New VM
+            vars:
+              task: get_ip_address.yml
+            include_role:
+              name: common
+          - debug:
+              msg: '{{lanvalidip}}'
+
+          - set_fact:
+              templatepatchingstatus: Failed to assign the IPv4 address to new cloned VM
+            when: lanvalidip is not search('.')
+
+          when: newvmip is not search('.')
+      
+      rescue:
+        - set_fact:
+            newvmlaunched: False
+            templatepatchingstatus: Failed to create new VM from this template {{ inventory_hostname }}
+

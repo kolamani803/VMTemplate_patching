@@ -1,0 +1,21 @@
+---
+  - block:
+    - name: Create a pre/current months sub folder folder under given parent folder
+      community.vmware.vcenter_folder:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter_name: "{{ vcenter_datacenter }}"
+        folder_name: '{{ item }}-{{ year.stdout }}'
+        parent_folder: '{{ parent_folder }}/Backup/'
+        state: present
+        validate_certs: no
+      with_items:
+        - "{{ premonth.stdout}}"
+        - "{{ currmonth.stdout}}"
+      # when: guestfullname.results[0].msg is defined
+      register: sub_folder_creation
+      delegate_to: localhost
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed to create backup and patching folders

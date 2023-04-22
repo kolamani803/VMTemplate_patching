@@ -1,0 +1,4 @@
+roles:
+    - name: ERPM_Roles
+      src: git@gitlab.ea.com:arajawat/general-roles.git
+      scm: git

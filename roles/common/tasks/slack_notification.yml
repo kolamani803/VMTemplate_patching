@@ -1,0 +1,33 @@
+---
+    - name: Notify task status to the slack channel
+      vars: 
+          slack_domain: electronic-arts.slack.com
+          # slack_channel: "#template_patching"
+          # item: cb-win2019x64-base
+          # templatepatchingstatus: Failed
+          # vcenter_hostname: va-vcnterlab1.ad.ea.com
+          # "{{slack_api_token}}"
+          # slack_token: "T039ZEK3W/B01D1S09KM2/0oBg21qJmJrSt5ROSWJRMyzj"
+      slack: 
+        domain: "{{ slack_domain }}"
+        token: "{{slack_api_token}}"
+        msg: '{{slackmsg}}'
+        channel: "{{ slack_channel }}"
+      register: slacknotification
+    
+    - debug:
+        var: slacknotification
+    
+# ---
+#     - name: Notify task to the slack channel
+#       vars: 
+#           slack_domain: electronic-arts.slack.com
+#           slack_channel: "#vm_template_patching"
+#           item: cb-centos76x64-base
+#       slack: 
+#         domain: "{{ slack_domain }}"
+#         token: "{{slack_api_token}}"
+#         msg: 'Template patching for {{ item }} - This VM template is {{ templatepatchingstatus }} in Vcenter {{ lookup("env", "VMWARE_HOST") }}'
+#         channel: "{{ slack_channel }}"
+#       when: templatepatchingstatus is defined
+

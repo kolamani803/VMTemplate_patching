@@ -1,0 +1,17 @@
+- block:
+  - name: Get Virtual Machine info
+    vmware_guest_facts:
+      hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+      username: '{{ lookup("env", "VMWARE_USER") }}'
+      password: '{{ lookup("env", "VMWARE_PASSWORD") }}' 
+      datacenter: '{{ vcenter_datacenter }}'
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+      folder: "{{vm_folder.folders[0]}}"
+    delegate_to: localhost
+    register: vminfo
+
+  rescue:
+    - set_fact:
+        templatepatchingstatus: 'Failed to get the facts of  production converted VM '
+

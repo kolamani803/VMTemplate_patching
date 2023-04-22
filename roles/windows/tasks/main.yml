@@ -1,0 +1,131 @@
+---
+  - block:
+    - name: Install Windows updates
+      community.vmware.vmware_vm_shell:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        validate_certs: False
+        folder: '{{ vmfolder }}'
+        vm_id: '{{ newvmname }}'
+        vm_username: '{{ windows_user }}'
+        vm_password: '{{ windows_user_pass }}'
+        vm_shell: 'C:\Windows\System32\WindowsPowershell\v1.0\powershell.exe'
+        vm_shell_args: |
+          "Install-WindowsUpdate -AcceptAll -IgnoreReboot > c:\\update_log.txt"
+        vm_shell_cwd: 'C:\Users\Administrator'
+        wait_for_process: true
+      delegate_to: localhost
+      register: check_updates_windows
+      
+    - debug:
+        var: check_updates_windows
+    
+    - debug:
+        var: check_updates_windows.changed
+        
+    - block:
+      - set_fact:
+          sub: 'CloudHQ template patching logs report - {{ lookup("env", "VMWARE_HOST") }} - {{ inventory_hostname }}'
+          logfile: windows_workstation.txt
+        when: summary.config.guestFullName is search('Microsoft Windows 10')
+        
+      - set_fact:
+          sub: 'CloudHQ template patching logs report - {{ lookup("env", "VMWARE_HOST") }} - {{ inventory_hostname }}'
+          logfile: windows_server.txt
+        when: summary.config.guestFullName is search('Microsoft Windows Server')
+
+      - name: Fetch file from VM
+        vars:
+          task: fetch_file_from_vm.yml
+        include_role:
+          name: common
+
+      - name: Send email with attachment
+        vars:
+          task: send_mail.yml
+        include_role:
+          name: common
+      - set_fact:
+          updatelogs: Sent logfile to receiver email
+      - set_fact:
+          templatepatchingstatus: Success
+    
+      when: check_updates_windows.changed is defined
+
+      rescue:
+        - set_fact:
+            templatepatchingstatus: Failed at fetching log file from vm and sending email
+      
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed Windows while updating
+    
+  - name: slack notification - Notify the template patching status
+    vars:
+      slackmsg: 'Runned patching on Windows - {{vmname}}'
+      task: slack_notification_reply.yml
+      colorcode: 'good'
+    include_role:
+      name: common
+    when: check_updates_windows.changed is defined
+
+
+  # - name: Notify task status to the slack channel
+  #   vars: 
+  #       slack_domain: electronic-arts.slack.com
+  #       slack_channel: "#vm_template_patching"
+  #       # item: cb-win2019x64-base
+  #       # templatepatchingstatus: Failed
+  #       # vcenter_hostname: va-vcnterlab1.ad.ea.com
+  #       # "{{slack_api_token}}"
+  #       # slack_token: "T039ZEK3W/B01D1S09KM2/0oBg21qJmJrSt5ROSWJRMyzj"
+  #   slack: 
+  #     domain: "{{ slack_domain }}"
+  #     token: "{{slack_api_token}}"
+  #     msg: '{{ item }} runned patching'
+  #     channel: "{{ slack_channel }}"
+  #   when: check_updates_windows.changed is defined
+  #   delegate_to: localhost
+
+
+# - name: Windows template patching
+#   block:
+#     - name: Install all updates and reboot as many times as needed
+#       win_updates:
+#         category_names: 
+#           - Update Rollups
+#           - Definition Updates
+#           - Updates
+#           - Drivers
+#           - SecurityUpdates
+#           - CriticalUpdates
+#         # reboot: yes
+#         # reboot_timeout: 2400
+#       register: winupdate
+      
+#   rescue:
+#     - debug:
+#         msg: ' The above tasks are failed'
+#     - set_fact:
+#         templatepatchingstatus: Failed
+
+# - debug:
+#     var: winupdate
+# shutdown /r"
+
+
+# - name: Install all security, critical, and rollup updates without a scheduled task
+#   win_updates:
+#     category_names:
+#       - SecurityUpdates
+#       - CriticalUpdates
+#       - UpdateRollups
+#   register: winupdate
+
+# - debug:
+#     var: winupdate
+
+
+

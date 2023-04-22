@@ -1,0 +1,26 @@
+---
+  - block:
+    - name: Copy templates
+      vmware_guest:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        cluster: '{{clustername}}'
+        validate_certs: False
+        name: '{{ prevmname }}'
+        template: '{{ inventory_hostname }}'
+        folder: '{{ prevmfolder }}'
+        convert: thin
+        is_template: yes
+        state_change_timeout: 1800
+      delegate_to: localhost
+      register: oldtemp
+
+    - set_fact:
+          templatepatchingstatus: Successful copy of template to backup folder
+
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed to copy template to backup folder
+

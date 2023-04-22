@@ -1,0 +1,130 @@
+---
+    - block:
+      
+        - name: RedHat Patching through satellite
+          shell: hostname
+          register: hostname
+
+        - debug:
+            var: hostname
+        - block:
+          - name: slack notification - Notify the template patching status
+            vars:
+              slackmsg: 'Red Hat failed at host adding - {{vmname}}'
+              task: slack_notification_reply.yml
+              colorcode: 'danger'
+            include_role:
+              name: common
+          - set_fact:
+              templatepatchingstatus: Failed at adding Red Hat host
+              
+          when: hostname.stdout is search('tower')
+
+        - block:
+            - name: slack notification - Notify the template patching status
+              vars:
+                slackmsg: 'Red Hat host got added - {{vmname}}'
+                task: slack_notification_reply.yml
+                colorcode: 'good'
+              include_role:
+                name: common
+                
+            - name: Remove all Katello
+              shell: yum remove katello* -y
+
+            - name: Download and install a copy of the CA Certificate for the Red Hat Satellite 7 server
+              yum:
+                # disable_gpg_check: yes
+                name: http://{{satelliteurl}}/pub/katello-ca-consumer-latest.noarch.rpm
+                state: present
+              register: installcert
+            
+            - debug:
+                var: installcert
+
+            - name: Setting enabled=1 in subscription-manager.conf
+              lineinfile:
+                path: /etc/yum/pluginconf.d/subscription-manager.conf
+                regexp: '^enabled'
+                line: 'enabled=1'
+
+            - name: Setting enabled=0 in rhnplugin.conf
+              lineinfile:
+                path: /etc/yum/pluginconf.d/rhnplugin.conf
+                regexp: '^enabled'
+                line: 'enabled=0'
+
+            - name: Check systemid file state
+              stat:
+                path: /etc/sysconfig/rhn/systemid
+              register: stat_result
+
+            - name: Rename systemid file for backup
+              command: mv /etc/sysconfig/rhn/systemid /etc/sysconfig/rhn/systemid.bak
+              when: stat_result.stat.exists == true
+
+            - name: Register with activationkey matching Red Hat Enterprise Server Version 7
+              redhat_subscription:
+                state: present
+                activationkey: linux-operations-rhel7
+                org_id: ELECTRONIC_ARTS
+                force_register: yes
+              when: ENV == "Dev"
+              
+            - name: Register with activationkey matching Red Hat Enterprise Server Version 7
+              redhat_subscription:
+                state: present
+                activationkey: enterprise-operations-rhel7
+                org_id: ELECTRONIC_ARTS
+                force_register: yes
+              when: ENV == "Prod"
+                
+            - name: Upgrade all packages
+              yum:
+                name: '*'
+                state: latest
+              register: upgrade
+            
+            - debug:
+                var: upgrade
+            - debug:
+                var: upgrade.results
+
+            - set_fact:
+                updatelogs: '{{upgrade.results}}'
+
+                
+            - name: De-register with activationkey matching Red Hat Enterprise Server Version 7
+              redhat_subscription:
+                state: absent
+                activationkey: linux-operations-rhel7
+                org_id: ELECTRONIC_ARTS
+              register: removesubsc
+            
+            - debug:
+                var: removesubsc
+
+            - name: Remove Katello for the "{{satelliteurl}}"
+              yum:
+                name: katello-ca-consumer-{{satelliteurl}}-1.0-1.noarch
+                state: absent
+              register: katellorem
+
+            - debug:
+                var: katellorem
+            
+            - set_fact:
+                templatepatchingstatus: Success
+            
+          when: hostname.stdout is not search('tower')      
+      rescue:
+        - set_fact:
+            templatepatchingstatus: Failed Redhat patching at satellite registration
+
+      
+      # - name: Registering back to Spacewalk
+      #   vars:
+      #     registrationcmd: 'sudo /usr/sbin/rhnreg_ks --force --serverUrl=https://swalk-master-sjc.ad.ea.com/XMLRPC --sslCACert=/usr/share/rhn/RHN-ORG-TRUSTED-SSL-CERT  --activationkey=4-d72da765282d6f49ac8c150a0a23fdc7'
+      #   shell: '{{ registrationcmd }}'
+      #   register: registration
+

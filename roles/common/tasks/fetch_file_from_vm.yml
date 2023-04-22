@@ -1,0 +1,22 @@
+---
+- block:
+  - name: fetch file from vm
+    community.vmware.vmware_guest_file_operation:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        datacenter: '{{ vcenter_datacenter }}'
+        validate_certs: False
+        vm_id: '{{ newvmname }}'
+        vm_username: '{{ windows_user }}'
+        vm_password: "{{ windows_user_pass }}"
+        fetch:
+            src: c:\update_log.txt
+            dest: "/tmp/{{logfile}}"
+    delegate_to: localhost
+
+  delegate_to: localhost
+  
+  rescue:
+    - set_fact:
+        templatepatchingstatus: Failed at fetching the file from VM

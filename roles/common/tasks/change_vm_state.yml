@@ -1,0 +1,21 @@
+---
+- block:
+    - name: Set the state of a virtual machine {{ newvmname }} to {{state}}
+      vmware_guest_powerstate:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        folder: '{{ vmfolder }}'
+        name: '{{ newvmname }}'
+        state: '{{state}}'
+        validate_certs: no
+      delegate_to: localhost
+      register: vmstate
+  rescue:
+    - set_fact:
+        templatepatchingstatus: 'Failed to {{state}} the VM - {{ newvmname }}'
+
+# - name: Wait seconds
+#   pause:
+#     seconds: 300
+

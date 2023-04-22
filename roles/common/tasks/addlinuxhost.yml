@@ -1,0 +1,23 @@
+---  
+  - block:
+      - name: Add the host
+        add_host:
+            name: '{{ vmname }}'
+            ansible_connection: '{{ connectiontype }}'
+            ansible_port: '{{ port }}'
+            ansible_host: '{{ newvmip }}'
+            ansible_user: '{{ username }}'
+            ansible_password: '{{ password }}'
+            # ansible_password: '{{password.json.Password}}'
+            ansible_become: yes
+            groups: '{{ groupname }}'
+        # no_log: true
+        register: addhost
+        delegate_to: localhost
+      
+      - debug:
+          var: addhost
+    rescue:
+      - set_fact:
+          templatepatchingstatus: Failed to addlinuxhost using add host module
+

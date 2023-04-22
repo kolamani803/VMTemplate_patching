@@ -1,0 +1,35 @@
+---
+    - name: 'Invoke role for password check-out'
+      vars:
+        generateTokenApi: "{{erpm_rest_url}}/Login"
+        erpmUser: "{{erpm_user}}"
+        erpmPassword: "{{erpm_password}}"
+        operation: 'CheckOut'
+        generatePasswordApi: "{{erpm_rest_url}}/SharedCredential?SharedCredentialList=GDIS%20-%20Virtualization&SystemName={{system_name}}&AccountName="
+        account: "{{service_account}}"
+      include_role:
+        name: ERPM_Roles
+
+    - debug:
+        var: password
+
+    - debug:
+        msg: "Password checked out"
+      when: checkOutStatus == true
+    
+    - debug:
+        msg: '{{ password.json.Password }}'
+      when: password is defined
+    - block:
+      - debug:
+          msg: "Password could not be checked out"
+
+      - name: slack notification - Password checkout status
+        vars:
+          slackmsg: 'Password could not be checked out - {{ inventory_hostname }}'
+          task: slack_notification_reply.yml
+          colorcode: 'danger'
+          slackthreadid: "{{ slacknotification['ts'] }}"
+        include_role:
+          name: common
+      when: checkOutStatus == false

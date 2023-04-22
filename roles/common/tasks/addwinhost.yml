@@ -1,0 +1,18 @@
+---
+  - name: Add the host
+    add_host:
+      name: '{{ vmname }}'
+      ansible_connection: winrm
+      # ansible_winrm_transport: ntlm
+      ansible_port: 5985
+      ansible_host: '{{ newvmip }}'
+      ansible_user: "{{ username }}"
+      ansible_password: "{{ password }}"
+      ansible_winrm_server_cert_validation: ignore
+      groups: test
+    # no_log: true
+    register: addhost
+    delegate_to: localhost
+  
+  - debug:
+      var: addhost

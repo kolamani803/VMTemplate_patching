@@ -1,0 +1,27 @@
+    - name: Get IP address of the VM
+      block:
+        - name: Gather vm details
+          community.vmware.vmware_guest_info:
+            hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+            username: '{{ lookup("env", "VMWARE_USER") }}'
+            password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+            validate_certs: false
+            datacenter: "{{ vcenter_datacenter }}"
+            name: "{{ vmname }}"
+          delegate_to: localhost
+          register: vmdetails
+
+        - debug: 
+            msg: "{{vmdetails.instance.ipv4}}"
+        - set_fact:
+            vmvalidationip: '{{vmdetails.instance.ipv4}}'
+        - set_fact:
+            lanvalidip: '{{vmdetails.instance.ipv4}}'
+
+        - set_fact:
+            templatepatchingstatus: Failed to get the IPv4 address of the VM after rebooting
+          when: vmvalidationip is not search('.')
+            
+      rescue:
+          - set_fact:
+              templatepatchingstatus: Failed to get the IP address of the VM

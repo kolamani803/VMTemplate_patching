@@ -1,0 +1,16 @@
+---
+    - name: Get the Before Prev month name
+      shell: date --date='-2 month' +'%B'
+      register: bepremonth
+    
+    - name: Get the Prev month name
+      shell: date --date='-1 month' +'%B'
+      register: premonth
+    
+    - name: Get the Current month name
+      shell: date +%B
+      register: currmonth
+    
+    - name: Get the current year
+      shell: date +%Y
+      register: year

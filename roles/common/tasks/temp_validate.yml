@@ -1,0 +1,69 @@
+---
+    - debug:
+        msg: '{{item}}'
+        
+    - name: Gather all registered templates
+      community.vmware.vmware_vm_info:
+        hostname: '{{ lookup("env", "VMWARE_HOST") }}'
+        username: '{{ lookup("env", "VMWARE_USER") }}'
+        password: '{{ lookup("env", "VMWARE_PASSWORD") }}'
+        validate_certs: false
+        vm_type: template
+      delegate_to: localhost
+      register: templatesinfo
+    
+
+    - debug:
+        var: templatesinfo.virtual_machines
+    
+    - debug:
+        var: templatesinfo
+
+    - name: Display Guestname
+      debug:
+        msg: "{{item.guest_fullname}}"
+      with_items: 
+        - "{{ templatesinfo.virtual_machines | json_query(query) }}"
+      vars:
+        query: "[?guest_name=='{{ item }}']"
+      register: guestfullname
+
+    - debug: 
+        var: guestfullname
+        
+    - debug:
+        var: guestfullname.results[0].msg
+    
+    - name: get everything except for the last 1 characters from string {{parent_folder}}
+      set_fact: 
+        path: "{{ parent_folder[:-1] }}"
+    - set_fact:
+        cloudhqpath: '/{{vcenter_datacenter}}/vm{{path}}'
+    - block:
+        - debug:
+            msg: ' This is related to CLoudHQ folder'
+          when: guestfullname.results[0].item.folder == '{{ cloudhqpath }}'
+      when: guestfullname.results[0].msg is defined 
+
+    - name: Summer Donna
+      pause:
+        seconds: 10
+
+    # - name: check folder of the template
+    #   debug:
+    #     msg: "{{item.guest_fullname}}"
+    #   with_items: 
+    #     - "{{ guestfullname.results[0].item | json_query(query) }}"
+    #   vars:
+    #     query: "[?folder=='{{ completepath }}']"
+    #     completepath: '/{{vcenter_datacenter}}/vm{{path}}'
+    #   register: cloudhqfolder
+    
+    # - debug:
+    #     var: cloudhqfolder
+    
+    # - debug:
+    #     var: cloudhqfolder.results[0].msg
+
+
+        

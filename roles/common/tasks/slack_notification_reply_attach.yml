@@ -1,0 +1,30 @@
+---
+    - name: Add more info to thread
+      vars:
+        slack_domain: electronic-arts.slack.com
+        slack_channel: "#template_patching"
+      community.general.slack:
+        channel: "{{ slack_channel }}"
+        token: "{{slack_api_token}}"
+        thread_id: "{{slackthreadid}}"
+        # thread_id: "{{ slacknotification['ts'] }}"
+        color: "{{colorcode}}"
+        msg: "{{slackmsg}}"
+      delegate_to: localhost
+# attachments:
+#           - blocks:
+#             - type: section
+#               text:
+#                 type: mrkdwn
+#                 text: "*Alternative hotel options*"
+#             - type: section
+#               text:
+#                 type: mrkdwn
+#                 text: "</tmp/{{logfile}}|Windows_logs_file> :star::star:"
+#               accessory:
+#                 type: button
+#                 text:
+#                   type: plain_text
+#                   text: View
+#                   emoji: true
+#                 value: view_alternate_1
